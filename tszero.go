@@ -54,25 +54,22 @@ func doZip(writer io.Reader) {
 }
 
 // get the reader that we will use to read the archive.
-func getReader() io.Reader {
+func withReader(consumer func(io.Reader)) {
 	if len(fileName) == 0 {
 		logMaybe("Reading from stdin")
-		return os.Stdin
+		consumer(os.Stdin)
+		return
 	}
 	logMaybe("File name is " + fileName)
 	file, err := os.Open("file.go") // For read access.
 	if err == nil {
-		return bufio.NewReader(file)
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
+		consumer(bufio.NewReader(file))
+		return
 	}
 	log.Fatal(err)
-	//goland:noinspection GoUnreachableCode
-	return nil // will never get here, but the compiler does not realize that os.Exit doesn't return
-}
-
-//Top level archive processing
-func processArchive(processor func(writer io.Reader)) {
-	reader := getReader()
-	processor(reader)
 }
 
 //main entry point into
@@ -83,9 +80,9 @@ func main() {
 	} else {
 		switch format {
 		case tarFmt:
-			processArchive(doTar)
+			withReader(doTar)
 		case zipFmt:
-			processArchive(doZip)
+			withReader(doZip)
 		default:
 			// TODO auto-detect type of archive file and make the format flag optional.
 			printHelp()
