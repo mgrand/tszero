@@ -49,8 +49,9 @@ func doTar(writer io.Reader) {
 }
 
 // Handle a zip archive
+//goland:noinspection GoUnusedParameter
 func doZip(writer io.Reader) {
-
+	//TODO Finish this
 }
 
 // get the reader that we will use to read the archive.
