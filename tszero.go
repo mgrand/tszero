@@ -2,12 +2,14 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"time"
 )
 
 const (
@@ -43,14 +45,34 @@ func printHelp() {
 	fmt.Println("This is the help message")
 }
 
-// Handle a tar archive
-func doTar(writer io.Reader) {
+// Set the timestamp fields of a header to zero
+func zeroHeaderTimeFields(header *tar.Header) {
+	header.ChangeTime = time.Time{}
+	header.AccessTime = time.Time{}
+	header.ModTime = time.Time{}
+}
 
+// Handle a tar archive
+func doTar(reader io.Reader) {
+	tarReader := tar.NewReader(reader)
+	tarWriter := tar.NewWriter(os.Stdout)
+	//var error error = nil
+	for {
+		//var header *tar.Header = nil
+		header, error := tarReader.Next()
+		if error != nil {
+			//TODO deal with specific errors.
+			break
+		}
+		zeroHeaderTimeFields(header)
+		tarWriter.WriteHeader(header)
+		// TODO Finish this
+	}
 }
 
 // Handle a zip archive
 //goland:noinspection GoUnusedParameter
-func doZip(writer io.Reader) {
+func doZip(reader io.Reader) {
 	//TODO Finish this
 }
 
