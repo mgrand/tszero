@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
@@ -32,14 +33,14 @@ var fileName string
 var bufferSize = 1024 * 1024
 
 // Set up the command line parsing
-func init() {
+func initFlags() {
 	log.SetOutput(os.Stderr)
 	flag.StringVar(&format, "format", "", "The value of format must be tar or zip.")
 	flag.BoolVar(&help, "help", false, "Specify this to see the help message.")
 	flag.BoolVar(&verbose, "v", false, "Verbose")
 	flag.IntVar(&bufferSize, "bufferSize", bufferSize, "buffer size for copying content.")
+	log.Println("Parsing: ", os.Args)
 	flag.Parse()
-	fileName = flag.Arg(0)
 }
 
 // Print the help message.
@@ -144,6 +145,8 @@ func withFileReader(consumer func(io.Reader)) {
 	log.Fatal(err, " File name: ", fileName)
 }
 
+// Call the given consumer function, passing it the given file object wrapped in a buffered reader.
+// Ensure that the file is closed before returning.
 func consume(consumer func(io.Reader), file *os.File) {
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -153,6 +156,8 @@ func consume(consumer func(io.Reader), file *os.File) {
 
 //main entry point into
 func main() {
+	defer stacktrace()
+	initFlags()
 	logMaybe("tszero starting")
 	if help {
 		printHelp()
@@ -173,5 +178,11 @@ func main() {
 func logMaybe(msg ...string) {
 	if verbose {
 		log.Println(msg)
+	}
+}
+
+func stacktrace() {
+	if r := recover(); r != nil {
+		fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
 	}
 }
