@@ -29,12 +29,15 @@ var verbose bool
 // The name of the archive file to process or empty string to indicate processing the stdin
 var fileName string
 
+var bufferSize = 1024 * 1024
+
 // Set up the command line parsing
 func init() {
 	log.SetOutput(os.Stderr)
 	flag.StringVar(&format, "format", "", "The value of format must be tar or zip.")
 	flag.BoolVar(&help, "help", false, "Specify this to see the help message.")
 	flag.BoolVar(&verbose, "v", false, "Verbose")
+	flag.IntVar(&bufferSize, "bufferSize", bufferSize, "buffer size for copying content.")
 	flag.Parse()
 	fileName = flag.Arg(0)
 }
@@ -56,18 +59,63 @@ func zeroHeaderTimeFields(header *tar.Header) {
 func doTar(reader io.Reader) {
 	tarReader := tar.NewReader(reader)
 	tarWriter := tar.NewWriter(os.Stdout)
-	//var error error = nil
 	for {
-		//var header *tar.Header = nil
-		header, error := tarReader.Next()
-		if error != nil {
-			//TODO deal with specific errors.
-			break
+		header, done := readTarHeader(tarReader)
+		if done {
+			return
 		}
+		logMaybe("processing ", header.Name)
 		zeroHeaderTimeFields(header)
-		tarWriter.WriteHeader(header)
-		// TODO Finish this
+		writeTarHeader(tarWriter, header)
+		copyContent(tarReader, tarWriter, header)
 	}
+}
+
+func writeTarHeader(tarWriter *tar.Writer, header *tar.Header) {
+	writeErr := tarWriter.WriteHeader(header)
+	if writeErr != nil {
+		log.Fatal("Error writing header", header, '\n', writeErr)
+	}
+}
+
+func readTarHeader(tarReader *tar.Reader) (*tar.Header, bool) {
+	header, readErr := tarReader.Next()
+	if readErr != nil {
+		if readErr == io.EOF {
+			return nil, true
+		}
+		log.Fatal("Error reading next header: ", readErr)
+	}
+	return header, false
+}
+
+func copyContent(tarReader *tar.Reader, tarWriter *tar.Writer, header *tar.Header) {
+	buffer := make([]byte, bufferSize)
+	for {
+		err, done := readTarContent(tarReader, buffer)
+		if done {
+			return
+		}
+		writeTarContent(err, tarWriter, buffer, header)
+	}
+}
+
+func writeTarContent(err error, tarWriter *tar.Writer, buffer []byte, header *tar.Header) {
+	_, err = tarWriter.Write(buffer)
+	if err != nil {
+		log.Fatal("Error write contents of ", header.Name, '\n', err)
+	}
+}
+
+func readTarContent(tarReader *tar.Reader, buffer []byte) (error, bool) {
+	count, err := tarReader.Read(buffer)
+	if err != nil {
+		if count == 0 {
+			return nil, true
+		}
+		log.Fatal(err)
+	}
+	return err, false
 }
 
 // Handle a zip archive
@@ -83,16 +131,24 @@ func withReader(consumer func(io.Reader)) {
 		consumer(os.Stdin)
 		return
 	}
-	logMaybe("File name is " + fileName)
+	logMaybe(" File name: ", fileName)
+	withFileReader(consumer)
+}
+
+func withFileReader(consumer func(io.Reader)) {
 	file, err := os.Open("file.go") // For read access.
 	if err == nil {
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
-		consumer(bufio.NewReader(file))
+		consume(consumer, file)
 		return
 	}
-	log.Fatal(err)
+	log.Fatal(err, " File name: ", fileName)
+}
+
+func consume(consumer func(io.Reader), file *os.File) {
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	consumer(bufio.NewReader(file))
 }
 
 //main entry point into
@@ -114,7 +170,7 @@ func main() {
 	logMaybe("tszero finished")
 }
 
-func logMaybe(msg string) {
+func logMaybe(msg ...string) {
 	if verbose {
 		log.Println(msg)
 	}
