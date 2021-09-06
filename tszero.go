@@ -57,9 +57,9 @@ func zeroHeaderTimeFields(header *tar.Header) {
 }
 
 // Handle a tar archive
-func doTar(reader io.Reader) {
+func doTar(reader io.Reader, out io.Writer) {
 	tarReader := tar.NewReader(reader)
-	tarWriter := tar.NewWriter(os.Stdout)
+	tarWriter := tar.NewWriter(out)
 	for {
 		header, done := readTarHeader(tarReader)
 		if done {
@@ -164,7 +164,7 @@ func main() {
 	} else {
 		switch format {
 		case tarFmt:
-			withReader(doTar)
+			withReader(func(reader io.Reader) { doTar(reader, os.Stdout) })
 		case zipFmt:
 			withReader(doZip)
 		default:
