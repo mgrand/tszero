@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -33,34 +34,44 @@ func Test_consume(t *testing.T) {
 
 func Test_doTar(t *testing.T) {
 	fileReader, fileLength := openTestTarFile(t)
-	buffer := bytes.NewBuffer(make([]byte, fileLength))
+	tmpFile := createTempFile()
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Logf("Attempt to remove %s failed with error: %s", name, err)
+		}
+	}(tmpFile.Name())
 	verbose = true
-	doTar(fileReader, buffer)
-	tarFileReader := tar.NewReader(fileReader)
-	tarBufferReader := tar.NewReader(buffer)
-	for {
+	doTar(fileReader, tmpFile)
+	rewindTempFile(tmpFile)
+	fileReader2, fileLength2 := openTestTarFile(t)
+	if fileLength != fileLength2 {
+		log.Fatalf("Tar file length changed; was %d and now %d", fileLength, fileLength2)
+	}
+	tarFileReader := tar.NewReader(fileReader2)
+	tarBufferReader := tar.NewReader(tmpFile)
+	for headerCount := 0; ; {
 		fileHeader, fileHeaderErr := tarFileReader.Next()
+		bufferHeader, bufferHeaderErr := tarBufferReader.Next()
 		log.Printf("file err: %+v; header: %+v\n", fileHeaderErr, fileHeader)
 		if fileHeaderErr != nil {
 			if fileHeaderErr == io.EOF {
-				log.Println("Ending test for file next returning EOF")
+				log.Printf("Ending test for file next returning EOF after reading %d headers", headerCount)
+				if bufferHeaderErr != io.EOF {
+					log.Fatal("File is at EOF, but buffer is not.")
+				}
 				break
 			}
 			log.Fatal("Error reading next file header: ", fileHeaderErr)
 		}
-		bufferHeader, bufferHeaderErr := tarBufferReader.Next()
 		if bufferHeaderErr != nil {
 			if bufferHeaderErr == io.EOF {
 				log.Fatalf("Output had EoF before input; Last input header was %+v", fileHeader)
 			}
 			log.Fatal("Error reading next file header: ", bufferHeaderErr)
 		}
-		if !nonTimestampHeaderFieldsMatch(fileHeader, bufferHeader) {
-			t.Fatalf("Headers do not match: %+v\nvs: %+v", fileHeader, bufferHeader)
-		}
-		if !timestampsAreZero(bufferHeader) {
-			t.Fatalf("Timestamps are not zero: %+v", bufferHeader)
-		}
+		checkHeaders(t, fileHeader, bufferHeader)
+		headerCount += 1
 		var readSize int = 2048
 		var fileBuffer = make([]byte, readSize)
 		var bufferBuffer = make([]byte, readSize)
@@ -86,6 +97,30 @@ func Test_doTar(t *testing.T) {
 				log.Fatalf("Content for %s is different", fileHeader.Name)
 			}
 		}
+	}
+}
+
+func rewindTempFile(tmpFile *os.File) {
+	newOffset, rewindErr := tmpFile.Seek(0, 0)
+	if newOffset != 0 || rewindErr != nil {
+		log.Fatalf("Rewind of temp file failed. After seek, offset was %d. Error: %s", newOffset, rewindErr)
+	}
+}
+
+func createTempFile() *os.File {
+	tmpFile, tmpErr := ioutil.TempFile(".", "tmp")
+	if tmpErr != nil {
+		log.Fatalf("Error creating temp file: %s", tmpErr)
+	}
+	return tmpFile
+}
+
+func checkHeaders(t *testing.T, fileHeader *tar.Header, bufferHeader *tar.Header) {
+	if !nonTimestampHeaderFieldsMatch(fileHeader, bufferHeader) {
+		t.Fatalf("Headers do not match: %+v\nvs: %+v", fileHeader, bufferHeader)
+	}
+	if !timestampsAreZero(bufferHeader) {
+		t.Fatalf("Timestamps are not zero: %+v", bufferHeader)
 	}
 }
 
