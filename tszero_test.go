@@ -132,7 +132,6 @@ func timestampsAreZero(header *tar.Header) bool {
 
 func nonTimestampHeaderFieldsMatch(h1 *tar.Header, h2 *tar.Header) bool {
 	return h1.Name == h2.Name &&
-		h1.Format == h2.Format &&
 		h1.Size == h2.Size &&
 		h1.Devmajor == h2.Devmajor &&
 		h1.Devminor == h2.Devminor &&
