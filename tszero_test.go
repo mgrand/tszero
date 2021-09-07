@@ -32,16 +32,18 @@ func Test_consume(t *testing.T) {
 }
 
 func Test_doTar(t *testing.T) {
-	fileReader := openTestTarFile(t)
-	buffer := bytes.NewBuffer(make([]byte, 200000))
+	fileReader, fileLength := openTestTarFile(t)
+	buffer := bytes.NewBuffer(make([]byte, fileLength))
 	verbose = true
 	doTar(fileReader, buffer)
-	tarFileReader := tar.NewReader(openTestTarFile(t))
+	tarFileReader := tar.NewReader(fileReader)
 	tarBufferReader := tar.NewReader(buffer)
 	for {
 		fileHeader, fileHeaderErr := tarFileReader.Next()
+		log.Printf("file err: %+v; header: %+v\n", fileHeaderErr, fileHeader)
 		if fileHeaderErr != nil {
 			if fileHeaderErr == io.EOF {
+				log.Println("Ending test for file next returning EOF")
 				break
 			}
 			log.Fatal("Error reading next file header: ", fileHeaderErr)
@@ -62,9 +64,11 @@ func Test_doTar(t *testing.T) {
 		var readSize int = 2048
 		var fileBuffer = make([]byte, readSize)
 		var bufferBuffer = make([]byte, readSize)
+		log.Printf("Comparing content for %s", fileHeader.Name)
 		for {
 			fileCount, err1 := tarFileReader.Read(fileBuffer)
 			if fileCount == 0 && err1 == io.EOF {
+				log.Println("End of content")
 				break
 			}
 			if err1 != nil {
@@ -107,12 +111,16 @@ func nonTimestampHeaderFieldsMatch(h1 *tar.Header, h2 *tar.Header) bool {
 		h1.Uname == h2.Uname
 }
 
-func openTestTarFile(t *testing.T) *os.File {
+func openTestTarFile(t *testing.T) (*os.File, int64) {
+	fileInfo, errStat := os.Stat(tar1)
+	if errStat != nil {
+		t.Fatalf("failed to stat %s; error: %s", tar1, errStat)
+	}
 	fileReader, err := os.Open(tar1)
 	if err != nil {
 		t.Fatalf("Failed to open %s", tar1)
 	}
-	return fileReader
+	return fileReader, fileInfo.Size()
 }
 
 func Test_doZip(t *testing.T) {
