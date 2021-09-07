@@ -73,9 +73,11 @@ func doTar(reader io.Reader, out io.Writer) {
 }
 
 func writeTarHeader(tarWriter *tar.Writer, header *tar.Header) {
-	writeErr := tarWriter.WriteHeader(header)
+	var h tar.Header = *header
+	h.Format = tar.FormatGNU
+	writeErr := tarWriter.WriteHeader(&h)
 	if writeErr != nil {
-		log.Fatal("Error writing header", header, '\n', writeErr)
+		log.Fatal("Error writing header", h, '\n', writeErr)
 	}
 }
 

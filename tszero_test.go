@@ -72,30 +72,38 @@ func Test_doTar(t *testing.T) {
 		}
 		checkHeaders(t, fileHeader, bufferHeader)
 		headerCount += 1
-		var readSize int = 2048
-		var fileBuffer = make([]byte, readSize)
-		var bufferBuffer = make([]byte, readSize)
-		log.Printf("Comparing content for %s", fileHeader.Name)
-		for {
-			fileCount, err1 := tarFileReader.Read(fileBuffer)
-			if fileCount == 0 && err1 == io.EOF {
-				log.Println("End of content")
-				break
-			}
-			if err1 != nil {
-				log.Fatal(err1)
-			}
+		compareContent(fileHeader, tarFileReader, tarBufferReader)
+	}
+}
 
-			bufferCount, err2 := tarBufferReader.Read(bufferBuffer)
-			if bufferCount != fileCount {
-				log.Fatalf("Length of content for %s is different for input and output", fileHeader.Name)
-			}
-			if err2 != nil {
-				log.Fatal(err2)
-			}
-			if bytes.Compare(fileBuffer, bufferBuffer) != 0 {
-				log.Fatalf("Content for %s is different", fileHeader.Name)
-			}
+func compareContent(fileHeader *tar.Header, tarFileReader *tar.Reader, tarBufferReader *tar.Reader) {
+	if fileHeader.Size == 0 {
+		log.Printf("No content for %s", fileHeader.Name)
+		return
+	}
+	var readSize int = 2048
+	var fileBuffer = make([]byte, readSize)
+	var tmpBuffer = make([]byte, readSize)
+	log.Printf("Comparing content for %s", fileHeader.Name)
+	for {
+		fileCount, err1 := tarFileReader.Read(fileBuffer)
+		if fileCount == 0 && err1 == io.EOF {
+			log.Println("End of content")
+			return
+		}
+		if err1 != nil && err1 != io.EOF {
+			log.Fatalf("Error reading from original tar file: %s", err1)
+		}
+
+		tmpCount, err2 := tarBufferReader.Read(tmpBuffer)
+		if tmpCount != fileCount {
+			log.Fatalf("Length of content for %s is different for input and output", fileHeader.Name)
+		}
+		if err2 != nil && err2 != io.EOF {
+			log.Fatalf("Error reading from temp tar file: %s", err1)
+		}
+		if bytes.Compare(fileBuffer, tmpBuffer) != 0 {
+			log.Fatalf("Content for %s is different", fileHeader.Name)
 		}
 	}
 }
@@ -125,9 +133,9 @@ func checkHeaders(t *testing.T, fileHeader *tar.Header, bufferHeader *tar.Header
 }
 
 func timestampsAreZero(header *tar.Header) bool {
-	return header.AccessTime == time.Time{} &&
-		header.ModTime == time.Time{} &&
-		header.ChangeTime == time.Time{}
+	return header.AccessTime.IsZero() &&
+		header.ModTime == time.Unix(0, 0) &&
+		header.ChangeTime.IsZero()
 }
 
 func nonTimestampHeaderFieldsMatch(h1 *tar.Header, h2 *tar.Header) bool {
