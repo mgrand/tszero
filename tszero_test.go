@@ -49,7 +49,7 @@ func Test_doTar(t *testing.T) {
 		bufferHeader, bufferHeaderErr := tarBufferReader.Next()
 		if bufferHeaderErr != nil {
 			if bufferHeaderErr == io.EOF {
-				log.Fatal("Output had EoF before input")
+				log.Fatalf("Output had EoF before input; Last input header was %+v", fileHeader)
 			}
 			log.Fatal("Error reading next file header: ", bufferHeaderErr)
 		}
