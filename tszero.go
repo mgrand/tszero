@@ -30,7 +30,7 @@ var verbose bool
 // The name of the archive file to process or empty string to indicate processing the stdin
 var fileName string
 
-var bufferSize = 1024 * 1024
+var bufferSize = 1024 * 8
 
 // Set up the command line parsing
 func initFlags() {
@@ -93,30 +93,37 @@ func readTarHeader(tarReader *tar.Reader) (*tar.Header, bool) {
 func copyContent(tarReader *tar.Reader, tarWriter *tar.Writer, header *tar.Header) {
 	buffer := make([]byte, bufferSize)
 	for {
-		err, done := readTarContent(tarReader, buffer)
+		count, done := readTarContent(tarReader, buffer)
 		if done {
 			return
 		}
-		writeTarContent(err, tarWriter, buffer, header)
+		writeTarContent(tarWriter, buffer[:count], header)
 	}
 }
 
-func writeTarContent(err error, tarWriter *tar.Writer, buffer []byte, header *tar.Header) {
-	_, err = tarWriter.Write(buffer)
-	if err != nil {
-		log.Fatal("Error write contents of ", header.Name, '\n', err)
-	}
-}
-
-func readTarContent(tarReader *tar.Reader, buffer []byte) (error, bool) {
-	count, err := tarReader.Read(buffer)
-	if err != nil {
-		if count == 0 {
-			return nil, true
+func writeTarContent(tarWriter *tar.Writer, buffer []byte, header *tar.Header) {
+	switch header.Typeflag {
+	case tar.TypeLink, tar.TypeSymlink, tar.TypeChar, tar.TypeBlock, tar.TypeDir, tar.TypeFifo:
+		return // These types contain no data
+	default:
+		_, err := tarWriter.Write(buffer)
+		if err != nil {
+			log.Fatalf("Error writing contents of %+v: %s\nLength of write buffer is %d", header, err, len(buffer))
 		}
+	}
+}
+
+// Read the current tar content into the buffer.
+// Returns true if all the bytes have been read or false if there are more bytes to be read.
+func readTarContent(tarReader *tar.Reader, buffer []byte) (int, bool) {
+	count, err := tarReader.Read(buffer)
+	if err == io.EOF && count == 0 {
+		return 0, true
+	}
+	if err != nil && err != io.EOF {
 		log.Fatal(err)
 	}
-	return err, false
+	return count, false
 }
 
 // Handle a zip archive

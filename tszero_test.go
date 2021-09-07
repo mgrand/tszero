@@ -34,6 +34,7 @@ func Test_consume(t *testing.T) {
 func Test_doTar(t *testing.T) {
 	fileReader := openTestTarFile(t)
 	buffer := bytes.NewBuffer(make([]byte, 200000))
+	verbose = true
 	doTar(fileReader, buffer)
 	tarFileReader := tar.NewReader(openTestTarFile(t))
 	tarBufferReader := tar.NewReader(buffer)
@@ -53,20 +54,20 @@ func Test_doTar(t *testing.T) {
 			log.Fatal("Error reading next file header: ", bufferHeaderErr)
 		}
 		if !nonTimestampHeaderFieldsMatch(fileHeader, bufferHeader) {
-			t.Fatalf("Headers do not match: %s\nvs: %s", fileHeader, bufferHeader)
+			t.Fatalf("Headers do not match: %+v\nvs: %+v", fileHeader, bufferHeader)
 		}
 		if !timestampsAreZero(bufferHeader) {
-			t.Fatalf("Timestamps are not zero: %s", bufferHeader)
+			t.Fatalf("Timestamps are not zero: %+v", bufferHeader)
 		}
 		var readSize int = 2048
 		var fileBuffer = make([]byte, readSize)
 		var bufferBuffer = make([]byte, readSize)
 		for {
 			fileCount, err1 := tarFileReader.Read(fileBuffer)
+			if fileCount == 0 && err1 == io.EOF {
+				break
+			}
 			if err1 != nil {
-				if fileCount == 0 {
-					break
-				}
 				log.Fatal(err1)
 			}
 
