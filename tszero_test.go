@@ -176,6 +176,7 @@ func Test_doZip(t *testing.T) {
 			t.Logf("Error removing temp output file %s", name)
 		}
 	}(tmpName)
+	verbose = true
 	doZip(zip1, tmpFile)
 	closeFile(t, tmpFile)
 
@@ -185,6 +186,9 @@ func Test_doZip(t *testing.T) {
 		t.Logf("File %d: %s", i, thisTestFile.Name)
 		thisTmpFile := tmpReader.File[i]
 		t.Logf("tmp header %+v", thisTmpFile)
+		if !thisTmpFile.FileHeader.Modified.IsZero() {
+			t.Fatal("Timestamp is not zero")
+		}
 	}
 }
 
