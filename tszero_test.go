@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"io"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 )
 
 const tar1 = "testdata/test.tar"
+const zip1 = "testdata/test.zip"
 
 func Test_consume(t *testing.T) {
 	var called = false
@@ -34,7 +36,7 @@ func Test_consume(t *testing.T) {
 
 func Test_doTar(t *testing.T) {
 	fileReader, fileLength := openTestTarFile(t)
-	tmpFile := createTempFile()
+	tmpFile := createTempFile("tar")
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
@@ -115,8 +117,8 @@ func rewindTempFile(tmpFile *os.File) {
 	}
 }
 
-func createTempFile() *os.File {
-	tmpFile, tmpErr := ioutil.TempFile(".", "tmp")
+func createTempFile(prefix string) *os.File {
+	tmpFile, tmpErr := ioutil.TempFile(".", prefix)
 	if tmpErr != nil {
 		log.Fatalf("Error creating temp file: %s", tmpErr)
 	}
@@ -166,19 +168,39 @@ func openTestTarFile(t *testing.T) (*os.File, int64) {
 }
 
 func Test_doZip(t *testing.T) {
-	type args struct {
-		reader io.Reader
+	tmpFile := createTempFile("zip")
+	tmpName := tmpFile.Name()
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Logf("Error removing temp output file %s", name)
+		}
+	}(tmpName)
+	doZip(zip1, tmpFile)
+	closeFile(t, tmpFile)
+
+	tmpReader := openZip(t, tmpName)
+	testReader := openZip(t, zip1)
+	for i, thisTestFile := range testReader.File {
+		t.Logf("File %d: %s", i, thisTestFile.Name)
+		thisTmpFile := tmpReader.File[i]
+		t.Logf("tmp header %+v", thisTmpFile)
 	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
+}
+
+func closeFile(t *testing.T, tmpFile *os.File) {
+	err := tmpFile.Close()
+	if err != nil {
+		t.Logf("Error closing outout: %s", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-		})
+}
+
+func openZip(t *testing.T, tmpName string) *zip.ReadCloser {
+	reader, err := zip.OpenReader(tmpName)
+	if err != nil {
+		t.Fatalf("Failed to open %s", zip1)
 	}
+	return reader
 }
 
 func Test_logMaybe(t *testing.T) {
@@ -200,38 +222,6 @@ func Test_logMaybe(t *testing.T) {
 func Test_printHelp(t *testing.T) {
 	tests := []struct {
 		name string
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-		})
-	}
-}
-
-func Test_withFileReader(t *testing.T) {
-	type args struct {
-		consumer func(io.Reader)
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-		})
-	}
-}
-
-func Test_withReader(t *testing.T) {
-	type args struct {
-		consumer func(io.Reader)
-	}
-	tests := []struct {
-		name string
-		args args
 	}{
 		// TODO: Add test cases.
 	}

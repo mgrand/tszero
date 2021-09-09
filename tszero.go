@@ -3,6 +3,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"flag"
 	"fmt"
@@ -130,17 +131,57 @@ func readTarContent(tarReader *tar.Reader, buffer []byte) (int, bool) {
 
 // Handle a zip archive
 //goland:noinspection GoUnusedParameter
-func doZip(reader io.Reader) {
-	//TODO Finish this
+func doZip(fileName string, out io.Writer) {
+	zipReader, err := zip.OpenReader(fileName)
+	if err != nil {
+		log.Fatalf("Failed to open file %s: %s", flag.Arg(0), err)
+	}
+	defer func(zipReader *zip.ReadCloser) {
+		err := zipReader.Close()
+		if err != nil {
+			log.Printf("Error closing input %s", fileName)
+		}
+	}(zipReader)
+	zipWriter := zip.NewWriter(out)
+	defer func(zipWriter *zip.Writer) {
+		err := zipWriter.Close()
+		if err != nil {
+			log.Fatal("Error closing output")
+		}
+	}(zipWriter)
+	for _, thisFile := range zipReader.File {
+		logMaybe("Copying ", thisFile.Name)
+		zeroZipHeaderTimestamps(thisFile)
+		fileWriter := createHeader(zipWriter, thisFile)
+		fileReader, err := thisFile.Open()
+		if err != nil {
+			log.Fatalf("Error (%s) opening file in zip for reading: %s", err, thisFile.FileHeader.Name)
+		}
+		byteCount, copyErr := io.Copy(fileWriter, fileReader)
+		if copyErr != nil {
+			log.Fatalf("Error (%s) copying file from source: %s", copyErr, thisFile.FileHeader.Name)
+		}
+		logMaybe("Copied ", fmt.Sprint(byteCount), " bytes.")
+	}
+}
+
+func createHeader(zipWriter *zip.Writer, thisFile *zip.File) io.Writer {
+	fileWriter, err := zipWriter.CreateHeader(&thisFile.FileHeader)
+	if err != nil {
+		log.Fatalf("Error (%s) creating header in output: %+v", err, &thisFile.FileHeader)
+	}
+	return fileWriter
+}
+
+//goland:noinspection GoDeprecation
+func zeroZipHeaderTimestamps(thisFile *zip.File) {
+	thisFile.FileHeader.Modified = time.Time{}
+	thisFile.FileHeader.ModifiedDate = 0
+	thisFile.FileHeader.ModifiedTime = 0
 }
 
 // get the reader that we will use to read the archive.
 func withReader(consumer func(io.Reader)) {
-	if len(fileName) == 0 {
-		logMaybe("Reading from stdin")
-		consumer(os.Stdin)
-		return
-	}
 	logMaybe(" File name: ", fileName)
 	withFileReader(consumer)
 }
@@ -168,14 +209,17 @@ func main() {
 	defer stacktrace()
 	initFlags()
 	logMaybe("tszero starting")
-	if help {
+	if help || len(flag.Args()) != 1 {
 		printHelp()
 	} else {
 		switch format {
 		case tarFmt:
 			withReader(func(reader io.Reader) { doTar(reader, os.Stdout) })
 		case zipFmt:
-			withReader(doZip)
+			if len(flag.Args()) < 1 {
+				log.Fatal("Processing a zip file requires at least one file name.")
+			}
+			doZip(flag.Arg(0), os.Stdout)
 		default:
 			// TODO auto-detect type of archive file and make the format flag optional.
 			printHelp()
