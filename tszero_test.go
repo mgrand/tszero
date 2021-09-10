@@ -222,30 +222,6 @@ func openZip(t *testing.T, tmpName string) *zip.ReadCloser {
 	return reader
 }
 
-func Test_logMaybe(t *testing.T) {
-	type args struct {
-		msg []string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-		})
-	}
-}
-
-func Test_printHelp(t *testing.T) {
-	tests := []struct {
-		name string
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-		})
-	}
+func Test_initFlags(t *testing.T) {
+	t.SkipNow()
 }

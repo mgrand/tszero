@@ -39,7 +39,6 @@ func initFlags() {
 	flag.StringVar(&format, "format", "", "The value of format must be tar or zip.")
 	flag.BoolVar(&help, "help", false, "Specify this to see the help message.")
 	flag.BoolVar(&verbose, "v", false, "Verbose")
-	flag.IntVar(&bufferSize, "bufferSize", bufferSize, "buffer size for copying content.")
 	log.Println("Parsing: ", os.Args)
 	flag.Parse()
 }
