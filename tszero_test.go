@@ -74,38 +74,38 @@ func Test_doTar(t *testing.T) {
 		}
 		checkHeaders(t, fileHeader, bufferHeader)
 		headerCount += 1
-		compareContent(fileHeader, tarFileReader, tarBufferReader)
+		compareContent(uint64(fileHeader.Size), fileHeader.Name, tarFileReader.Read, tarBufferReader.Read)
 	}
 }
 
-func compareContent(fileHeader *tar.Header, tarFileReader *tar.Reader, tarBufferReader *tar.Reader) {
-	if fileHeader.Size == 0 {
-		log.Printf("No content for %s", fileHeader.Name)
+func compareContent(size uint64, name string, readFn1 func([]byte) (int, error), readFn2 func([]byte) (int, error)) {
+	if size == 0 {
+		log.Printf("No content for %s", name)
 		return
 	}
 	var readSize int = 2048
 	var fileBuffer = make([]byte, readSize)
 	var tmpBuffer = make([]byte, readSize)
-	log.Printf("Comparing content for %s", fileHeader.Name)
+	log.Printf("Comparing content for %s", name)
 	for {
-		fileCount, err1 := tarFileReader.Read(fileBuffer)
+		fileCount, err1 := readFn1(fileBuffer)
 		if fileCount == 0 && err1 == io.EOF {
 			log.Println("End of content")
 			return
 		}
 		if err1 != nil && err1 != io.EOF {
-			log.Fatalf("Error reading from original tar file: %s", err1)
+			log.Fatalf("Error reading from original file: %s", err1)
 		}
 
-		tmpCount, err2 := tarBufferReader.Read(tmpBuffer)
+		tmpCount, err2 := readFn2(tmpBuffer)
 		if tmpCount != fileCount {
-			log.Fatalf("Length of content for %s is different for input and output", fileHeader.Name)
+			log.Fatalf("Length of content for %s is different for input and output", name)
 		}
 		if err2 != nil && err2 != io.EOF {
-			log.Fatalf("Error reading from temp tar file: %s", err1)
+			log.Fatalf("Error reading from temp file: %s", err1)
 		}
 		if bytes.Compare(fileBuffer, tmpBuffer) != 0 {
-			log.Fatalf("Content for %s is different", fileHeader.Name)
+			log.Fatalf("Content for %s is different", name)
 		}
 	}
 }
@@ -186,10 +186,25 @@ func Test_doZip(t *testing.T) {
 		t.Logf("File %d: %s", i, thisTestFile.Name)
 		thisTmpFile := tmpReader.File[i]
 		t.Logf("tmp header %+v", thisTmpFile)
-		if !thisTmpFile.FileHeader.Modified.IsZero() {
+		modTime := thisTmpFile.Modified
+		if modTime.UnixMicro() != 0 {
 			t.Fatal("Timestamp is not zero")
 		}
+		if thisTestFile.UncompressedSize64 != thisTmpFile.UncompressedSize64 {
+			t.Fatal("Lengths are not equal.")
+		}
+		thisTestReader := openFileInZip(t, thisTestFile)
+		thisTmpReader := openFileInZip(t, thisTmpFile)
+		compareContent(thisTestFile.UncompressedSize64, thisTestFile.Name, thisTestReader.Read, thisTmpReader.Read)
 	}
+}
+
+func openFileInZip(t *testing.T, thisTestFile *zip.File) io.ReadCloser {
+	reader, err := thisTestFile.Open()
+	if err != nil {
+		t.Fatalf("Error (%s) opening %s in %s", err, thisTestFile.Name, zip1)
+	}
+	return reader
 }
 
 func closeFile(t *testing.T, tmpFile *os.File) {

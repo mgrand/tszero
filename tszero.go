@@ -152,32 +152,40 @@ func doZip(fileName string, out io.Writer) {
 	for _, thisFile := range zipReader.File {
 		logMaybe("Copying ", thisFile.Name)
 		zeroZipHeaderTimestamps(thisFile)
-		fileWriter := createHeader(zipWriter, thisFile)
-		fileReader, err := thisFile.Open()
-		if err != nil {
-			log.Fatalf("Error (%s) opening file in zip for reading: %s", err, thisFile.FileHeader.Name)
-		}
-		byteCount, copyErr := io.Copy(fileWriter, fileReader)
-		if copyErr != nil {
-			log.Fatalf("Error (%s) copying file from source: %s", copyErr, thisFile.FileHeader.Name)
-		}
+		fileWriter := createHeader(zipWriter, thisFile.FileHeader)
+		fileReader := getReader(thisFile)
+		byteCount := copyFile(fileWriter, fileReader, thisFile)
 		logMaybe("Copied ", fmt.Sprint(byteCount), " bytes.")
 	}
 }
 
-func createHeader(zipWriter *zip.Writer, thisFile *zip.File) io.Writer {
-	fileWriter, err := zipWriter.CreateHeader(&thisFile.FileHeader)
+func copyFile(fileWriter io.Writer, fileReader io.ReadCloser, thisFile *zip.File) int64 {
+	byteCount, copyErr := io.Copy(fileWriter, fileReader)
+	if copyErr != nil {
+		log.Fatalf("Error (%s) copying file from source: %s", copyErr, thisFile.FileHeader.Name)
+	}
+	return byteCount
+}
+
+func getReader(thisFile *zip.File) io.ReadCloser {
+	fileReader, err := thisFile.Open()
 	if err != nil {
-		log.Fatalf("Error (%s) creating header in output: %+v", err, &thisFile.FileHeader)
+		log.Fatalf("Error (%s) opening file in zip for reading: %s", err, thisFile.FileHeader.Name)
+	}
+	return fileReader
+}
+
+func createHeader(zipWriter *zip.Writer, fh zip.FileHeader) io.Writer {
+	fileWriter, err := zipWriter.CreateHeader(&fh)
+	if err != nil {
+		log.Fatalf("Error (%s) creating header in output: %+v", err, fh)
 	}
 	return fileWriter
 }
 
 //goland:noinspection GoDeprecation
 func zeroZipHeaderTimestamps(thisFile *zip.File) {
-	thisFile.FileHeader.Modified = time.Time{}
-	thisFile.FileHeader.ModifiedDate = 0
-	thisFile.FileHeader.ModifiedTime = 0
+	thisFile.FileHeader.Modified = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
 // get the reader that we will use to read the archive.
