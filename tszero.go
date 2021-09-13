@@ -19,28 +19,51 @@ const (
 	zipFmt = "zip"
 )
 
-// This should be set to "tar" or "zip"
-var format string
+type config struct {
+	// The program name
+	programName string
 
-// If true, the help flag was specified.
-var help bool
+	// This should be set to "tar" or "zip"
+	format string
 
-// if true, the v (verbose) flag was specified
-var verbose bool
+	// If true, the help flag was specified.
+	help bool
 
-// The name of the archive file to process or empty string to indicate processing the stdin
-var fileName string
+	// if true, the v (verbose) flag was specified
+	verbose bool
 
-var bufferSize = 1024 * 8
+	// The name of the archive file to process or empty string to indicate processing the stdin
+	fileName string
 
-// Set up the command line parsing
-func initFlags() {
-	log.SetOutput(os.Stderr)
-	flag.StringVar(&format, "format", "", "The value of format must be tar or zip.")
-	flag.BoolVar(&help, "help", false, "Specify this to see the help message.")
-	flag.BoolVar(&verbose, "v", false, "Verbose")
-	log.Println("Parsing: ", os.Args)
-	flag.Parse()
+	// The command line arguments that are not flags
+	args []string
+}
+
+// Set by main to the configuration
+var conf config
+
+const bufferSize = 1024 * 8
+
+// parses the command-line arguments provided to the program and initialize flags set from the command line.
+//
+// os.Args[0] is provided as 'programName' and os.args[1:] as 'args'.
+// Returns the Config in case parsing succeeded, or an error.
+func initFlags(programName string, args []string) (cnf *config, err error) {
+	flags := flag.NewFlagSet(programName, flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+
+	var myConf config
+	myConf.programName = programName
+	flags.StringVar(&myConf.format, "format", "", "The value of format must be tar or zip.")
+	flags.BoolVar(&myConf.help, "help", false, "Specify this to see the help message.")
+	flags.BoolVar(&myConf.verbose, "v", false, "Verbose")
+
+	err = flags.Parse(args)
+	if err != nil {
+		return nil, err
+	}
+	conf.args = flags.Args()
+	return &myConf, nil
 }
 
 // Print the help message.
@@ -73,7 +96,7 @@ func doTar(reader io.Reader, out io.Writer) {
 }
 
 func writeTarHeader(tarWriter *tar.Writer, header *tar.Header) {
-	var h tar.Header = *header
+	var h = *header
 	h.Format = tar.FormatGNU
 	writeErr := tarWriter.WriteHeader(&h)
 	if writeErr != nil {
@@ -187,19 +210,14 @@ func zeroZipHeaderTimestamps(thisFile *zip.File) {
 	thisFile.FileHeader.Modified = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
-// get the reader that we will use to read the archive.
-func withReader(consumer func(io.Reader)) {
-	logMaybe(" File name: ", fileName)
-	withFileReader(consumer)
-}
-
+// provide the reader that we will use to read the archive.
 func withFileReader(consumer func(io.Reader)) {
-	file, err := os.Open("file.go") // For read access.
+	file, err := os.Open(conf.args[0]) // For read access.
 	if err == nil {
 		consume(consumer, file)
 		return
 	}
-	log.Fatal(err, " File name: ", fileName)
+	log.Fatal(err, " File name: ", conf.fileName)
 }
 
 // Call the given consumer function, passing it the given file object wrapped in a buffered reader.
@@ -213,20 +231,24 @@ func consume(consumer func(io.Reader), file *os.File) {
 
 //main entry point into
 func main() {
+	log.SetOutput(os.Stderr)
 	defer stacktrace()
-	initFlags()
+	conf, err := initFlags(os.Args[0], os.Args[1:])
+	if err != nil {
+		log.Fatalf("Error parsing command line: %s", err)
+	}
 	logMaybe("tszero starting")
-	if help || len(flag.Args()) != 1 {
+	if conf.help || len(conf.args) != 1 {
 		printHelp()
 	} else {
-		switch format {
+		switch conf.format {
 		case tarFmt:
-			withReader(func(reader io.Reader) { doTar(reader, os.Stdout) })
+			withFileReader(func(reader io.Reader) { doTar(reader, os.Stdout) })
 		case zipFmt:
-			if len(flag.Args()) < 1 {
+			if len(conf.args) < 1 {
 				log.Fatal("Processing a zip file requires at least one file name.")
 			}
-			doZip(flag.Arg(0), os.Stdout)
+			doZip(conf.args[0], os.Stdout)
 		default:
 			// TODO auto-detect type of archive file and make the format flag optional.
 			printHelp()
@@ -236,7 +258,7 @@ func main() {
 }
 
 func logMaybe(msg ...string) {
-	if verbose {
+	if conf.verbose {
 		log.Println(msg)
 	}
 }
