@@ -223,5 +223,25 @@ func openZip(t *testing.T, tmpName string) *zip.ReadCloser {
 }
 
 func Test_initFlags(t *testing.T) {
-	t.SkipNow()
+	programName := "Test_initFlags"
+	conf, err := initFlags(programName, []string{})
+	if err != nil {
+		t.Errorf("For empty command line initFlags returned error: %s", err)
+	} else {
+		if conf.help || conf.verbose || conf.programName != programName || conf.format != "" || len(conf.args) != 0 {
+			t.Errorf("Empty command line parsed to unexpected configuration value %+v", conf)
+		}
+	}
+	conf2, err2 := initFlags(programName, []string{"-v", "-help", "-format", "tar", tar1})
+	if err2 != nil {
+		t.Errorf("For full command line initFlags returned error: %s", err2)
+	} else {
+		if !conf2.help || !conf2.verbose || conf2.programName != programName || conf2.format != "tar" || len(conf2.args) != 1 || conf2.args[0] != tar1 {
+			t.Errorf("Full command line parsed to unexpected configuration value %+v", conf)
+		}
+	}
+	_, err3 := initFlags(programName, []string{"-bogus"})
+	if err3 == nil {
+		t.Error("Expected error by got none.")
+	}
 }

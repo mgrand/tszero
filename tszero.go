@@ -62,7 +62,7 @@ func initFlags(programName string, args []string) (cnf *config, err error) {
 	if err != nil {
 		return nil, err
 	}
-	conf.args = flags.Args()
+	myConf.args = flags.Args()
 	return &myConf, nil
 }
 
