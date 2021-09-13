@@ -40,7 +40,7 @@ type config struct {
 }
 
 // Set by main to the configuration
-var conf config
+var conf *config
 
 const bufferSize = 1024 * 8
 
@@ -50,7 +50,7 @@ const bufferSize = 1024 * 8
 // Returns the Config in case parsing succeeded, or an error.
 func initFlags(programName string, args []string) (cnf *config, err error) {
 	flags := flag.NewFlagSet(programName, flag.ContinueOnError)
-	flags.SetOutput(os.Stderr)
+	flags.SetOutput(flag.CommandLine.Output())
 
 	var myConf config
 	myConf.programName = programName
@@ -58,18 +58,20 @@ func initFlags(programName string, args []string) (cnf *config, err error) {
 	flags.BoolVar(&myConf.help, "help", false, "Specify this to see the help message.")
 	flags.BoolVar(&myConf.verbose, "v", false, "Verbose")
 
+	flag.Usage = func() {
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:is\n", os.Args[0])
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "%s -format tar [-v] [-help] filename\n", os.Args[0])
+		_, _ = fmt.Fprint(flag.CommandLine.Output(), "or\n")
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "%s -format zip [-v] [-help] filename\n", os.Args[0])
+		flags.PrintDefaults()
+	}
+
 	err = flags.Parse(args)
 	if err != nil {
 		return nil, err
 	}
 	myConf.args = flags.Args()
 	return &myConf, nil
-}
-
-// Print the help message.
-func printHelp() {
-	//TODO finish this
-	fmt.Println("This is the help message")
 }
 
 // Set the timestamp fields of a header to zero
@@ -231,15 +233,16 @@ func consume(consumer func(io.Reader), file *os.File) {
 
 //main entry point into
 func main() {
-	log.SetOutput(os.Stderr)
+	log.SetOutput(flag.CommandLine.Output())
 	defer stacktrace()
-	conf, err := initFlags(os.Args[0], os.Args[1:])
+	var err error
+	conf, err = initFlags(os.Args[0], os.Args[1:])
 	if err != nil {
 		log.Fatalf("Error parsing command line: %s", err)
 	}
 	logMaybe("tszero starting")
 	if conf.help || len(conf.args) != 1 {
-		printHelp()
+		flag.Usage()
 	} else {
 		switch conf.format {
 		case tarFmt:
@@ -251,7 +254,7 @@ func main() {
 			doZip(conf.args[0], os.Stdout)
 		default:
 			// TODO auto-detect type of archive file and make the format flag optional.
-			printHelp()
+			flag.Usage()
 		}
 	}
 	logMaybe("tszero finished")
