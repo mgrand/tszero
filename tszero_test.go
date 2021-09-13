@@ -245,3 +245,7 @@ func Test_initFlags(t *testing.T) {
 		t.Error("Expected error by got none.")
 	}
 }
+
+func Test_integration(t *testing.T) {
+	t.SkipNow()
+}
