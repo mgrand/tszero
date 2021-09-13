@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"crypto/sha512"
 	"io"
 	"io/ioutil"
 	"log"
@@ -14,7 +15,9 @@ import (
 )
 
 const tar1 = "testdata/test.tar"
+const tar2 = "testdata/test2.tar"
 const zip1 = "testdata/test.zip"
+const zip2 = "testdata/test2.zip"
 
 func Test_consume(t *testing.T) {
 	var called = false
@@ -35,7 +38,7 @@ func Test_consume(t *testing.T) {
 }
 
 func Test_doTar(t *testing.T) {
-	fileReader, fileLength := openTestTarFile(t)
+	fileReader, fileLength := openTestTarFile(t, tar1)
 	tmpFile := createTempFile("tar")
 	defer func(name string) {
 		err := os.Remove(name)
@@ -46,7 +49,7 @@ func Test_doTar(t *testing.T) {
 	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: fileReader.Name(), args: []string{fileReader.Name()}}
 	doTar(fileReader, tmpFile)
 	rewindTempFile(tmpFile)
-	fileReader2, fileLength2 := openTestTarFile(t)
+	fileReader2, fileLength2 := openTestTarFile(t, tar1)
 	if fileLength != fileLength2 {
 		log.Fatalf("Tar file length changed; was %d and now %d", fileLength, fileLength2)
 	}
@@ -155,14 +158,14 @@ func nonTimestampHeaderFieldsMatch(h1 *tar.Header, h2 *tar.Header) bool {
 		h1.Uname == h2.Uname
 }
 
-func openTestTarFile(t *testing.T) (*os.File, int64) {
-	fileInfo, errStat := os.Stat(tar1)
+func openTestTarFile(t *testing.T, fileName string) (*os.File, int64) {
+	fileInfo, errStat := os.Stat(fileName)
 	if errStat != nil {
 		t.Fatalf("failed to stat %s; error: %s", tar1, errStat)
 	}
-	fileReader, err := os.Open(tar1)
+	fileReader, err := os.Open(fileName)
 	if err != nil {
-		t.Fatalf("Failed to open %s", tar1)
+		t.Fatalf("Failed to open %s", fileName)
 	}
 	return fileReader, fileInfo.Size()
 }
@@ -246,6 +249,20 @@ func Test_initFlags(t *testing.T) {
 	}
 }
 
-func Test_integration(t *testing.T) {
-	t.SkipNow()
+func Test_systemTar(t *testing.T) {
+	fileReader1, _ := openTestTarFile(t, tar1)
+	hasher1 := sha512.New()
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: fileReader1.Name(), args: []string{fileReader1.Name()}}
+	doTar(fileReader1, hasher1)
+	hash1 := hasher1.Sum(nil)
+
+	fileReader2, _ := openTestTarFile(t, tar2)
+	hasher2 := sha512.New()
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: fileReader2.Name(), args: []string{fileReader2.Name()}}
+	doTar(fileReader2, hasher2)
+	hash2 := hasher2.Sum(nil)
+
+	if bytes.Compare(hash1, hash2) != 0 {
+		t.Errorf("Hashes are unequal.")
+	}
 }
