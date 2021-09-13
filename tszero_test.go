@@ -43,7 +43,7 @@ func Test_doTar(t *testing.T) {
 			t.Logf("Attempt to remove %s failed with error: %s", name, err)
 		}
 	}(tmpFile.Name())
-	conf = config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: fileReader.Name(), args: []string{fileReader.Name()}}
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: fileReader.Name(), args: []string{fileReader.Name()}}
 	doTar(fileReader, tmpFile)
 	rewindTempFile(tmpFile)
 	fileReader2, fileLength2 := openTestTarFile(t)
@@ -176,7 +176,7 @@ func Test_doZip(t *testing.T) {
 			t.Logf("Error removing temp output file %s", name)
 		}
 	}(tmpName)
-	conf = config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: zip1, args: []string{zip1}}
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: zip1, args: []string{zip1}}
 	doZip(zip1, tmpFile)
 	closeFile(t, tmpFile)
 
