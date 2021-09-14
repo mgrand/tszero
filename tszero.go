@@ -19,6 +19,8 @@ const (
 	zipFmt = "zip"
 )
 
+var emptyByteArray []byte
+
 type config struct {
 	// The program name
 	programName string
@@ -210,6 +212,7 @@ func createHeader(zipWriter *zip.Writer, fh zip.FileHeader) io.Writer {
 //goland:noinspection GoDeprecation
 func zeroZipHeaderTimestamps(thisFile *zip.File) {
 	thisFile.FileHeader.Modified = time.UnixMicro(0)
+	thisFile.Extra = emptyByteArray
 }
 
 // provide the reader that we will use to read the archive.

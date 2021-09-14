@@ -266,3 +266,19 @@ func Test_systemTar(t *testing.T) {
 		t.Errorf("Hashes are unequal.")
 	}
 }
+
+func Test_systemZip(t *testing.T) {
+	hasher1 := sha512.New()
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: zip1, args: []string{zip1}}
+	doZip(zip1, hasher1)
+	hash1 := hasher1.Sum(nil)
+
+	hasher2 := sha512.New()
+	conf = &config{programName: "Test_doTar", format: "tar", help: false, verbose: true, fileName: zip2, args: []string{zip2}}
+	doZip(zip2, hasher2)
+	hash2 := hasher2.Sum(nil)
+
+	if bytes.Compare(hash1, hash2) != 0 {
+		t.Errorf("Hashes are unequal.")
+	}
+}
