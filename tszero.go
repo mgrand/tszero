@@ -209,7 +209,7 @@ func createHeader(zipWriter *zip.Writer, fh zip.FileHeader) io.Writer {
 
 //goland:noinspection GoDeprecation
 func zeroZipHeaderTimestamps(thisFile *zip.File) {
-	thisFile.FileHeader.Modified = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+	thisFile.FileHeader.Modified = time.UnixMicro(0)
 }
 
 // provide the reader that we will use to read the archive.
